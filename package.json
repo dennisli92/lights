@@ -1,0 +1,25 @@
+{
+  "name": "lights",
+  "version": "0.0.1",
+  "description": "",
+  "devDependencies": {
+    "bundle-loader": "^0.5.3",
+    "css-loader": "^0.9.1",
+    "es6-loader": "^0.2.0",
+    "exports-loader": "^0.6.2",
+    "file-loader": "^0.8.1",
+    "imports-loader": "^0.6.3",
+    "jsx-loader": "^0.12.2",
+    "script-loader": "^0.6.1",
+    "style-loader": "^0.8.3",
+    "url-loader": "^0.5.5"
+  },
+  "scripts": {
+    "start": "webpack-dev-server -d --progress --colors --watch"
+  },
+  "dependencies": {
+    "babel-core": "^5.2.17",
+    "babel-loader": "^5.0.0",
+    "webpack": "^1.8.11"
+  }
+}
