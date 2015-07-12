@@ -6,13 +6,9 @@ let audioContext = new (window.AudioContext || window.webkitAudioContext)(); // 
 
 let oscillator = null;
 
-// let biquadFilter = audioContext.createBiquadFilter();
-// biquadFilter.type = biquadFilter.BANDPASS;
-// biquadFilter.frequency.value = 15000;
-// biquadFilter.Q.value = biquadFilter.frequency.value / (17000 - 13000);
-
 let fft = audioContext.createAnalyser();
 fft.fftSize = 256;
+fft.smoothingTimeConstant = 0.99;
 
 let nyquistFreq = audioContext.sampleRate / 2;
 let freqPerIndex = nyquistFreq / fft.frequencyBinCount;
@@ -32,12 +28,68 @@ let App = React.createClass({
 
     frequencyForIndex(index) {
       return freqPerIndex * index;
+    },
+
+    // see http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
+    HSVtoRGB(h, s, v, intensity) {
+      var r, g, b, i, f, p, q, t;
+      i = Math.floor(h * 6);
+      f = h * 6 - i;
+      p = v * (1 - s);
+      q = v * (1 - f * s);
+      t = v * (1 - (1 - f) * s);
+      switch (i % 6) {
+          case 0: r = v, g = t, b = p; break;
+          case 1: r = q, g = v, b = p; break;
+          case 2: r = p, g = v, b = t; break;
+          case 3: r = p, g = q, b = v; break;
+          case 4: r = t, g = p, b = v; break;
+          case 5: r = v, g = p, b = q; break;
+      }
+      return {
+          r: r * 255,
+          g: g * 255,
+          b: b * 255,
+          t: intensity
+      };
+    },
+
+    // See http://www.vamusic.info/p/thecolourscale
+    
+    frequencyToColor(frequency, intensity) {
+      let {note, octave} = this.frequencyToNote(frequency);
+
+      return this.HSVtoRGB(note * 360, octave, intensity / 256, intensity);
+    },
+
+    // Relative to c0 (16.35 Hz)
+    frequencyToNote(frequency, amplitud) {
+      let c0 = 16.35; //Hz
+      let note = (frequency % c0) / c0; // [0, 1)
+
+      let multiplier = frequency / c0;
+      let octave = Math.max(Math.floor(Math.log10(multiplier) / Math.log10(2)), 0);
+
+      return {note, octave};
+    },
+
+    /*
+     * see http://stackoverflow.com/questions/726549/algorithm-for-additive-color-mixing-for-rgb-values
+     */
+    blendColors(colorsList) {
+      let normalizer = _(colorsList).reduce((sum, c) => sum + c.t, 0);
+      return {
+        r: Math.sqrt(_(colorsList).reduce((sum, c) => sum + c.r * c.r * c.t / normalizer, 0)),
+        g: Math.sqrt(_(colorsList).reduce((sum, c) => sum + c.g * c.g * c.t / normalizer, 0)),
+        b: Math.sqrt(_(colorsList).reduce((sum, c) => sum + c.b * c.b * c.t / normalizer, 0)),
+        t: 1
+      };
     }
   },
 
   getInitialState() {
     return {
-      data: false
+      data: []
     }
   },
 
@@ -58,7 +110,7 @@ let App = React.createClass({
   componentDidMount() {
     this.setupMicrophone();
 
-    this.updateOscillator(15000);
+    // this.updateOscillator(15000);
   },
 
   updateOscillator(freq) {
@@ -76,26 +128,30 @@ let App = React.createClass({
     let out = audioContext.createBufferSource();
 
     let source = audioContext.createMediaStreamSource(stream);
-    // source.connect(biquadFilter);
     source.connect(fft);
-    // fft.connect(audioContext.destination)
 
     window.setInterval(this.update, 100);
   },
 
   update() {
-    let data = new Uint8Array(fft.frequencyBinCount); 
-    fft.getByteFrequencyData(data); 
+    let frequencyData = new Uint8Array(fft.frequencyBinCount); 
+    fft.getByteFrequencyData(frequencyData); 
+
+    if (this.state.data.length < 10) {
+      this.state.data.shift();
+    }
+
+    this.state.data.push(frequencyData)
 
     this.setState({
-      data
+      data: this.state.data
     });
   },
 
   getColor() {
     let data = this.state.data;
 
-    if (!data)
+    if (_(data).isEmpty())
       return 'white';
 
     // let sortedData = _(data)
@@ -109,26 +165,25 @@ let App = React.createClass({
 
     // let max2 = _(sortedData).last(2)[0];
 
-    let bass = 0, mids = 0, trebble = 0;
+    let colorsList = _(data)
+      .chain()
+      .last()
+      .map((value, index) => {
+        let frequency = App.frequencyForIndex(index);
 
-    _(data).each((value, index) => {
-      let freq = App.frequencyForIndex(index);
+        return App.frequencyToColor(frequency, value);
+      })
+      .value()
 
-      if (freq < 512) {
-        bass = Math.floor(Math.max(bass, value));
-      } else if (freq < 2048) {
-        mids = Math.floor(Math.max(mids, value));
-      } else if (freq < 12000) {
-        trebble = Math.floor(Math.max(trebble, value));
-      }
-    });
-
-    return `rgb(${bass}, ${mids}, ${trebble})`;
+    console.log(colorsList)
+    let colors = App.blendColors(colorsList);
+    console.log(colors);
+    return `rgb(${Math.floor(colors.r)}, ${Math.floor(colors.g)}, ${Math.floor(colors.b)})`;
   },
 
   render() {
     let color = this.getColor();
-    console.log(color);
+    // console.log(color);
     return (
       <div style={{
         'width':'100%', 
