@@ -12,7 +12,7 @@ let oscillator = null;
 // biquadFilter.Q.value = biquadFilter.frequency.value / (17000 - 13000);
 
 let fft = audioContext.createAnalyser();
-fft.fftSize = 1024;
+fft.fftSize = 256;
 
 let nyquistFreq = audioContext.sampleRate / 2;
 let freqPerIndex = nyquistFreq / fft.frequencyBinCount;
@@ -32,6 +32,12 @@ let App = React.createClass({
 
     frequencyForIndex(index) {
       return freqPerIndex * index;
+    }
+  },
+
+  getInitialState() {
+    return {
+      data: false
     }
   },
 
@@ -73,41 +79,63 @@ let App = React.createClass({
     // source.connect(biquadFilter);
     source.connect(fft);
     // fft.connect(audioContext.destination)
-    //
-    let canvas = this.refs['analyser'].getDOMNode();
-    gfx = canvas.getContext('2d');
 
-    requestAnimationFrame(this.update); 
+    window.setInterval(this.update, 100);
   },
 
   update() {
-    requestAnimationFrame(this.update); 
+    let data = new Uint8Array(fft.frequencyBinCount); 
+    fft.getByteFrequencyData(data); 
 
-    gfx.clearRect(0,0,800,600); 
-    gfx.fillStyle = 'gray'; 
-    let freqBuffer = new Uint8Array(fft.frequencyBinCount); 
-    fft.getByteFrequencyData(freqBuffer); 
+    this.setState({
+      data
+    });
+  },
 
-    let data = _(freqBuffer)
-      .chain()
-      .map((value, index) => ({value, freq: App.frequencyForIndex(index)}))
-      .sortBy(obj => obj.value)
-      .value();
+  getColor() {
+    let data = this.state.data;
 
-    console.log(_(data).last())
+    if (!data)
+      return 'white';
 
+    // let sortedData = _(data)
+    //   .chain()
+    //   .map((value, index) => ({value, freq: App.frequencyForIndex(index)}))
+    //   .sortBy(obj => obj.value)
+    //   .value();
 
-    gfx.fillStyle = 'red'; 
+    // let max = _(sortedData).last();
+    // let red = max.freq / 5000 * 256;
 
-    for(var i=0; i< freqBuffer.length; i++) { 
-      gfx.fillRect(100 + i, 100 + 256 - freqBuffer[i] * 2, 3, 100); 
-    } 
+    // let max2 = _(sortedData).last(2)[0];
+
+    let bass = 0, mids = 0, trebble = 0;
+
+    _(data).each((value, index) => {
+      let freq = App.frequencyForIndex(index);
+
+      if (freq < 512) {
+        bass = Math.floor(Math.max(bass, value));
+      } else if (freq < 2048) {
+        mids = Math.floor(Math.max(mids, value));
+      } else if (freq < 12000) {
+        trebble = Math.floor(Math.max(trebble, value));
+      }
+    });
+
+    return `rgb(${bass}, ${mids}, ${trebble})`;
   },
 
   render() {
+    let color = this.getColor();
+    console.log(color);
     return (
-      <div>
-        <canvas ref="analyser" />
+      <div style={{
+        'width':'100%', 
+        'height': '100%',
+        'content': ' ',
+        'backgroundColor': color
+      }}>
       </div>
     );
   }
