@@ -8,7 +8,7 @@ let oscillator = null;
 
 let fft = audioContext.createAnalyser();
 fft.fftSize = 256;
-fft.smoothingTimeConstant = 0.99;
+fft.smoothingTimeConstant = 0.25;
 
 let nyquistFreq = audioContext.sampleRate / 2;
 let freqPerIndex = nyquistFreq / fft.frequencyBinCount;
@@ -50,20 +50,25 @@ let App = React.createClass({
           r: r * 255,
           g: g * 255,
           b: b * 255,
-          t: intensity
+          t: 0.01
       };
     },
 
     // See http://www.vamusic.info/p/thecolourscale
     
-    frequencyToColor(frequency, intensity) {
+    frequencyToColor(frequency, intensity, totalAmplitude) {
       let {note, octave} = this.frequencyToNote(frequency);
 
-      return this.HSVtoRGB(note * 360, octave, intensity / 256, intensity);
+      return this.HSVtoRGB(
+        note * 360, 
+        octave, 
+        (totalAmplitude % 256) / 256, 
+        intensity
+      );
     },
 
     // Relative to c0 (16.35 Hz)
-    frequencyToNote(frequency, amplitud) {
+    frequencyToNote(frequency) {
       let c0 = 16.35; //Hz
       let note = (frequency % c0) / c0; // [0, 1)
 
@@ -165,25 +170,25 @@ let App = React.createClass({
 
     // let max2 = _(sortedData).last(2)[0];
 
+    let totalAmplitude = _(_(data).last()).reduce((sum, value) => sum + value, 0);
+
     let colorsList = _(data)
       .chain()
       .last()
       .map((value, index) => {
         let frequency = App.frequencyForIndex(index);
 
-        return App.frequencyToColor(frequency, value);
+        return App.frequencyToColor(frequency, totalAmplitude, value);
       })
       .value()
 
-    console.log(colorsList)
     let colors = App.blendColors(colorsList);
-    console.log(colors);
     return `rgb(${Math.floor(colors.r)}, ${Math.floor(colors.g)}, ${Math.floor(colors.b)})`;
   },
 
   render() {
     let color = this.getColor();
-    // console.log(color);
+    console.log(color);
     return (
       <div style={{
         'width':'100%', 
