@@ -8,6 +8,6 @@
     "bower_components"
   ],
   "dependencies": {
-    "underscore": "~1.8.2"
+    "lodash": "~3.10.1"
   }
 }
